@@ -8,11 +8,15 @@
 #include "src/my_SSD1306.h"
 #include <SPI.h>
 
+#define KEEP_RATIO 1   //0 is stretch mode, 1 keep the orgin ratio(160x120 vs 128x64)
+
 #define OLED_DC PA1
 #define OLED_CS PA2
 #define OLED_RESET PA4
 SSD1306 oled(OLED_DC, OLED_RESET, OLED_CS);
 uint8_t* buf;
+
+
 
 // OV7670 pinmap
 // A8 - MCLK
@@ -84,6 +88,34 @@ void loop() {
   uint16_t nextY = 0;
   uint8_t cX = 0;
   uint8_t cY = 0;
+  
+#if KEEP_RATIO == 1
+  uint16_t tmp = 80 * cY;
+  nextY = tmp / HEIGHT + (tmp%HEIGHT > HEIGHT/2? 1:0) + 20;
+  for (uint16_t j = 0; j < camera.getLineCount(); j++) {
+    camera.readLine();
+    if(j == nextY){
+      for(int i=0; i<160; i++){
+        if(i == nextX){
+          uint8_t intensity = pixel_buffer[i*2];
+          if(intensity > THRESHOLD){
+            buf[cX+cY/8*WIDTH] = buf[cX+cY/8*WIDTH] | (1<<(cY%8));
+          } else {
+            buf[cX+cY/8*WIDTH] = buf[cX+cY/8*WIDTH] & ~(1<<(cY%8));
+          }
+          cX++;
+          uint16_t tmp = 160 * cX;
+          nextX = tmp / WIDTH + (tmp%WIDTH > WIDTH/2? 1:0);
+        }
+      }
+      cX = 0;
+      nextX = 0;
+      cY++;
+      uint16_t tmp = 80 * cY;
+      nextY = tmp / HEIGHT + (tmp%HEIGHT > HEIGHT/2? 1:0) + 20;
+    }
+  }
+#else
   for (uint16_t j = 0; j < camera.getLineCount(); j++) {
     camera.readLine();
     if(j == nextY){
@@ -107,6 +139,7 @@ void loop() {
       nextY = tmp / HEIGHT + (tmp%HEIGHT > HEIGHT/2? 1:0);
     }
   }
+#endif
   interrupts();
   oled.display();
 }
